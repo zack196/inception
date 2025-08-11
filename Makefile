@@ -17,7 +17,7 @@ setup:
 	@sudo mkdir -p "$(WORDPRESS_DIR)" "$(DATABASE_DIR)"
 	@sudo chmod 755 "$(WORDPRESS_DIR)" "$(DATABASE_DIR)"
 	# If DB perms act up later, try:
-	# @sudo chown -R 999:999 "$(DATABASE_DIR)"
+	@sudo chown -R 999:999 "$(DATABASE_DIR)"
 
 up:
 	@$(DC) up -d

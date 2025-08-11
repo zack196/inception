@@ -6,7 +6,7 @@ services:
       context: requirements/mariadb/
       dockerfile: Dockerfile
     container_name: mariadb
-    # restart: always
+    restart: always
     networks:
       - inception-network
     volumes:
@@ -17,6 +17,7 @@ services:
       - DB_HOST=0.0.0.0
       - MARIADB_ROOT_PASSWORD_FILE=/run/secrets/db_root_password
       - MARIADB_PASSWORD_FILE=/run/secrets/db_password
+    env_file: .env
     secrets:
       - db_password
       - db_root_password
@@ -27,39 +28,48 @@ services:
       retries: 12
       start_period: 20s
 
-  # wordpress:
-  #   build:
-  #     context: requirements/wordpress/
-  #     dockerfile: Dockerfile
-  #   container_name: wordpress
-  #   volumes:
-  #     - wordpress-website:/var/www/wordpress
-  #   secrets:
-  #     - db_password
-  #   environment:
-  #     - MYSQL_PASSWORD_FILE=/run/secrets/db_password
-  #   networks:
-  #     - inception-network
-  #   depends_on:
-  #     - mariadb
-  #   restart: always
-  #   env_file: .env
+  wordpress:
+    build:
+      context: requirements/wordpress/
+      dockerfile: Dockerfile
+    container_name: wordpress
+    volumes:
+      - wordpress-website:/var/www/wordpress
+    secrets:
+      - db_password
+    environment:
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_HOST=mariadb
+      - MYSQL_PASSWORD_FILE=/run/secrets/db_password
+    networks:
+      - inception-network
+    depends_on:
+      - mariadb
+    restart: always
+    env_file: .env
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9000"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
-  # nginx:
-  #   build:
-  #     context: requirements/nginx/
-  #     dockerfile: Dockerfile
-  #   container_name: nginx
-  #   ports:
-  #     - 443:443
-  #   volumes:
-  #     - wordpress-website:/var/www/wordpress
-  #   networks:
-  #     - inception-network
-  #   restart: always
-  #   env_file: .env
-  #   depends_on:
-  #     - wordpress
+  nginx:
+    build:
+      context: requirements/nginx/
+      dockerfile: Dockerfile
+    container_name: nginx
+    ports:
+      - 443:443
+    volumes:
+      - wordpress-website:/var/www/wordpress
+    networks:
+      - inception-network
+    restart: always
+    env_file: .env
+    depends_on:
+      - wordpress
 
 volumes:
   wordpress-website:
