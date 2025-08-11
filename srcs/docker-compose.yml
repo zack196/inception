@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  mariadb:
+    build:
+      context: requirements/mariadb/
+      dockerfile: Dockerfile
+    container_name: mariadb
+    # restart: always
+    networks:
+      - inception-network
+    volumes:
+      - wordpress-database:/var/lib/mysql
+    environment:
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_HOST=0.0.0.0
+      - MARIADB_ROOT_PASSWORD_FILE=/run/secrets/db_root_password
+      - MARIADB_PASSWORD_FILE=/run/secrets/db_password
+    secrets:
+      - db_password
+      - db_root_password
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$(cat /run/secrets/db_root_password) --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # wordpress:
+  #   build:
+  #     context: requirements/wordpress/
+  #     dockerfile: Dockerfile
+  #   container_name: wordpress
+  #   volumes:
+  #     - wordpress-website:/var/www/wordpress
+  #   secrets:
+  #     - db_password
+  #   environment:
+  #     - MYSQL_PASSWORD_FILE=/run/secrets/db_password
+  #   networks:
+  #     - inception-network
+  #   depends_on:
+  #     - mariadb
+  #   restart: always
+  #   env_file: .env
+
+  # nginx:
+  #   build:
+  #     context: requirements/nginx/
+  #     dockerfile: Dockerfile
+  #   container_name: nginx
+  #   ports:
+  #     - 443:443
+  #   volumes:
+  #     - wordpress-website:/var/www/wordpress
+  #   networks:
+  #     - inception-network
+  #   restart: always
+  #   env_file: .env
+  #   depends_on:
+  #     - wordpress
+
+volumes:
+  wordpress-website:
+    driver: local
+    driver_opts:
+      device: '${HOME}/data/wordpress'
+      o: bind
+      type: none
+
+  wordpress-database:
+    driver: local
+    driver_opts:
+      device: '${HOME}/data/database'
+      o: bind
+      type: none
+
+networks:
+  inception-network:
+
+secrets:
+  db_password:
+    file: ../secrets/db_password.txt
+  db_root_password:
+    file: ../secrets/db_root_password.txt
