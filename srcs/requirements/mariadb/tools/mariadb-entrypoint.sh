@@ -1,45 +1,30 @@
-#!/bin/bash
-# set -euo pipefail
+#!/bin/sh
 
-# Read secrets (provided by docker-compose secrets)
-ROOT_PW="$(cat /run/secrets/db_root_password)"
-USER_PW="$(cat /run/secrets/db_password)"
+set -e
 
-# Env from .env (or compose 'environment:')
-DB_NAME="${DB_NAME:-wordpress}"
-DB_USER="${DB_USER:-wpuser}"
+MARIADB_ROOT_PASSWORD=$(cat ${MARIADB_ROOT_PASSWORD})
+MARIADB_PASSWORD=$(cat ${MARIADB_PASSWORD})
 
-# First-time initialization if system tables are missing
-if [ ! -d "/var/lib/mysql/mysql" ]; then
-  echo "Initializing MariaDB datadir..."
-  mariadb-install-db --user=mysql --datadir=/var/lib/mysql --skip-test-db >/dev/null
+if [ ! -d /var/lib/mysql/mysql ]; then
+    echo "Initialise database..."
+    mariadb-install-db --basedir=/usr --user=mysql --datadir=/var/lib/mysql --skip-test-db
 
-  echo "Starting temporary server (socket only)..."
-  mysqld --skip-networking --socket=/run/mysqld/mysqld.sock --datadir=/var/lib/mysql &
-  pid="$!"
+    TMP=/tmp/.tmpfile
 
-  echo "Waiting for server..."
-  for i in {1..60}; do
-    mysqladmin --socket=/run/mysqld/mysqld.sock ping &>/dev/null && break
-    sleep 1
-  done
+    echo "mysql commands..."
 
-  echo "Configuring root/user/database..."
-  mariadb --protocol=SOCKET --socket=/run/mysqld/mysqld.sock <<-SQL
-    ALTER USER 'root'@'localhost' IDENTIFIED BY '${ROOT_PW}';
-    DELETE FROM mysql.user WHERE user='' OR host NOT IN ('localhost','127.0.0.1','::1');
-    FLUSH PRIVILEGES;
+    echo "FLUSH PRIVILEGES;" >> ${TMP}
+	echo "ALTER USER 'root'@'localhost' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';" >> ${TMP}
+	echo "CREATE DATABASE ${WORDPRESS_DB_NAME};" >> ${TMP}
+	echo "CREATE USER '${WORDPRESS_DB_USER}'@'%' IDENTIFIED BY '${MARIADB_PASSWORD}';" >> ${TMP}
+	echo "GRANT ALL PRIVILEGES ON ${WORDPRESS_DB_NAME}.* TO '${WORDPRESS_DB_USER}'@'%' IDENTIFIED BY '${MARIADB_PASSWORD}';" >> ${TMP}
+	echo "FLUSH PRIVILEGES;" >> ${TMP}
 
-    CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-    CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${USER_PW}';
-    GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';
-    FLUSH PRIVILEGES;
-SQL
+    mariadbd --user=mysql --bootstrap < ${TMP}
+    
+    rm -f ${TMP}
 
-  echo "Shutting down temporary server..."
-  mysqladmin --protocol=SOCKET --socket=/run/mysqld/mysqld.sock -uroot -p"${ROOT_PW}" shutdown
-  wait "$pid"
+    echo "Database initialized successfully."
+
 fi
-
-echo "Launching MariaDB..."
-exec "$@"
+exec mariadbd --user=mysql --datadir=/var/lib/mysql

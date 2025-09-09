@@ -2,95 +2,118 @@ version: '3.8'
 
 services:
   mariadb:
-    build:
-      context: requirements/mariadb/
-      dockerfile: Dockerfile
-    container_name: mariadb
     restart: always
+    build:
+      context: ./requirements/mariadb/
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    env_file: .env
     networks:
       - inception-network
-    volumes:
-      - wordpress-database:/var/lib/mysql
-    environment:
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_HOST=0.0.0.0
-      - MARIADB_ROOT_PASSWORD_FILE=/run/secrets/db_root_password
-      - MARIADB_PASSWORD_FILE=/run/secrets/db_password
-    env_file: .env
+    container_name: mariadb
     secrets:
-      - db_password
       - db_root_password
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$(cat /run/secrets/db_root_password) --silent"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
+      - db_password
+    environment:
+      - MARIADB_PASSWORD=/run/secrets/db_password
+      - MARIADB_ROOT_PASSWORD=/run/secrets/db_root_password
+    image: mariadb
 
   wordpress:
+    restart: always
     build:
-      context: requirements/wordpress/
-      dockerfile: Dockerfile
+      context: ./requirements/wordpress/
     container_name: wordpress
     volumes:
-      - wordpress-website:/var/www/wordpress
-    secrets:
-      - db_password
-    environment:
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_HOST=mariadb
-      - MYSQL_PASSWORD_FILE=/run/secrets/db_password
+      - wordpress_data:/var/www/html
     networks:
       - inception-network
+    env_file: .env
+    environment:
+      - MARIADB_PASSWORD=/run/secrets/db_password
+      - MARIADB_ROOT_PASSWORD=/run/secrets/db_root_password
+    secrets:
+      - db_root_password
+      - db_password
     depends_on:
       - mariadb
-    restart: always
-    env_file: .env
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z 127.0.0.1 9000"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 10s
+      - redis
+    image: wordpress
 
   nginx:
+    restart: always
     build:
-      context: requirements/nginx/
-      dockerfile: Dockerfile
+      context: ./requirements/nginx/
     container_name: nginx
     ports:
       - 443:443
     volumes:
-      - wordpress-website:/var/www/wordpress
+      - wordpress_data:/var/www/html
     networks:
       - inception-network
-    restart: always
-    env_file: .env
     depends_on:
       - wordpress
+      # - adminer
+    image: nginx
+  
+  redis:
+    restart: always
+    build:
+      context: ./requirements/bonus/redis/
+    container_name: redis
+    networks:
+      - inception-network
+    image: redis
+  
+  ftp:
+    restart: always
+    depends_on:
+      - wordpress
+    build:
+      # image: ftp
+      context: ./requirements/bonus/ftp/
+    container_name: ftp
+    networks:
+      - inception-network
+    volumes:
+      - wordpress_data:/data
+    image: ftp
+
+  # adminer:
+  #   restart: always
+  #   build: 
+  #     # image: adminer
+  #     context: ./requirements/bonus/adminer/
+  #   container_name: adminer
+  #   volumes:
+  #     - wordpress_data:/var/www/html
+  #   networks:
+  #     - inception-network
+  #   depends_on:
+  #     - nginx
+  #     - mariadb
+    
 
 volumes:
-  wordpress-website:
+  mariadb_data:
     driver: local
     driver_opts:
-      device: '${HOME}/data/wordpress'
-      o: bind
       type: none
+      o: bind
+      device: $HOME/data/data-base
+  
+  wordpress_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: $HOME/data/data-website
 
-  wordpress-database:
-    driver: local
-    driver_opts:
-      device: '${HOME}/data/database'
-      o: bind
-      type: none
+secrets:
+  db_root_password:
+    file: ../secrets/db_root_password.txt
+  db_password:
+    file: ../secrets/db_password.txt
 
 networks:
   inception-network:
-
-secrets:
-  db_password:
-    file: ../secrets/db_password.txt
-  db_root_password:
-    file: ../secrets/db_root_password.txt

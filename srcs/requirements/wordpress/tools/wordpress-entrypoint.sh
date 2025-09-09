@@ -1,53 +1,52 @@
 #!/bin/sh
+
 set -e
 
-DB_NAME=${DB_NAME}
-DB_USER=${DB_USER}
-DB_PASSWORD="$(cat /run/secrets/db_password)"
-DB_HOST=${DB_HOST:-mariadb}
+# Set environment variables for database connection
+MARIADB_ROOT_PASSWORD=$(cat ${MARIADB_ROOT_PASSWORD})
+MARIADB_PASSWORD=$(cat ${MARIADB_PASSWORD})
 
-# 1) Wait for MariaDB to accept connections
-echo "⏳ Waiting for MariaDB at ${DB_HOST}:3306..."
-until nc -z "$DB_HOST" 3306; do
-  sleep 1
-done
-echo "✅ MariaDB is reachable."
+if [ ! -f /var/www/html/index.php ]; then
+    echo "Downloading WordPress..."
+    wget https://wordpress.org/latest.tar.gz
+    tar -xvzf latest.tar.gz
+    mv wordpress/* /var/www/html/
+    rm -f latest.tar.gz
+    rm -rf wordpress
+    chown -R www-data:www-data /var/www/html/*
+    
+    # Update wp-config.php if it is not already updated
+    if [ ! -f /var/www/html/wp-config.php ]; then
+        cp /var/www/html/wp-config-sample.php /var/www/html/wp-config.php
+        chown www-data:www-data /var/www/html/wp-config.php
+        echo "wp-config.php created from sample."
+        
+        # Update wp-config.php with environment variables
+        sed -i "s/database_name_here/${WORDPRESS_DB_NAME}/" /var/www/html/wp-config.php
+        sed -i "s/username_here/${WORDPRESS_DB_USER}/" /var/www/html/wp-config.php
+        sed -i "s/password_here/${MARIADB_PASSWORD}/" /var/www/html/wp-config.php
+        sed -i "s/localhost/${WORDPRESS_DB_HOST}/" /var/www/html/wp-config.php
+        
+        # Redis configuration
+        echo "Configuring Redis..."
+        sed -i "/^require_once.*wp-settings\.php/i\
+           define('WP_CACHE', true);\
+           define('WP_REDIS_HOST', 'redis');\
+           define('WP_REDIS_PORT', 6379);" /var/www/html/wp-config.php
 
-# 2) Download WordPress into the bind-mounted volume if missing
-if [ ! -f index.php ]; then
-  echo "📦 Downloading WordPress..."
-  curl -fsSL -o /tmp/wordpress.tar.gz https://wordpress.org/latest.tar.gz
-  tar -xzf /tmp/wordpress.tar.gz -C /tmp/
-  mv /tmp/wordpress/* /var/www/wordpress/
-  rm -rf /tmp/wordpress /tmp/wordpress.tar.gz
-  chown -R nobody:nobody /var/www/wordpress
+        apk add --no-cache curl unzip
+
+        # Install the plugin
+        mkdir -p /var/www/html/wp-content/plugins
+        cd /var/www/html/wp-content/plugins
+        curl -L -o redis-cache.zip https://downloads.wordpress.org/plugin/redis-cache.latest-stable.zip
+        unzip -q redis-cache.zip && rm redis-cache.zip
+        
+        # Enable the drop-in (what "wp redis enable" would do)
+        cp /var/www/html/wp-content/plugins/redis-cache/includes/object-cache.php \
+           /var/www/html/wp-content/object-cache.php
+
+    fi
 fi
 
-# (B) Now wait for DB
-echo "⏳ Waiting for MariaDB at ${DB_HOST}:3306..."
-until nc -z "$DB_HOST" 3306; do sleep 1; done
-echo "✅ MariaDB is reachable."
-
-# 3) (Optional) Auto-generate wp-config.php so setup page is skipped
-if [ ! -f wp-config.php ] && [ -f wp-config-sample.php ]; then
-  cp wp-config-sample.php wp-config.php
-  sed -i "s/database_name_here/${DB_NAME}/" wp-config.php
-  sed -i "s/username_here/${DB_USER}/"      wp-config.php
-  sed -i "s/password_here/${DB_PASSWORD}/"  wp-config.php
-  sed -i "s/localhost/${DB_HOST}/"          wp-config.php
-
-  # Add salts (best effort; if offline, you can fill later)
-  SALTS="$(curl -fsSL https://api.wordpress.org/secret-key/1.1/salt/ || true)"
-  if [ -n "$SALTS" ]; then
-    awk -v r="$SALTS" '
-      /AUTH_KEY|SECURE_AUTH_KEY|LOGGED_IN_KEY|NONCE_KEY|AUTH_SALT|SECURE_AUTH_SALT|LOGGED_IN_SALT|NONCE_SALT/ {next}
-      {print}
-      /<?php/ {print r}
-    ' wp-config.php > wp-config.php.new && mv wp-config.php.new wp-config.php
-  fi
-
-  chown nobody:nobody wp-config.php
-fi
-
-# 4) Start PHP-FPM in foreground (Nginx will talk to port 9000)
 exec php-fpm83 -F
