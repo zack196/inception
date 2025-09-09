@@ -1,54 +1,22 @@
-SHELL := /bin/sh
-
-
-DATA_DIR       := $(HOME)/data
-WORDPRESS_DIR  := $(DATA_DIR)/wordpress
-DATABASE_DIR   := $(DATA_DIR)/database
-
-
-COMPOSE_FILE   := srcs/docker-compose.yml
-PROJECT        := inception
-DC             := docker-compose -p $(PROJECT) -f $(COMPOSE_FILE)
-
+DATA_DIR=$(HOME)/"data"
+DATA_WEBSITE=$(DATA_DIR)/"data-website"
+DATA_DATABASE=$(DATA_DIR)/"data-base"
+DOCKER_COMPOSE="srcs/docker-compose.yml"
 
 all: setup up
 
-setup:
-	@sudo mkdir -p "$(WORDPRESS_DIR)" "$(DATABASE_DIR)"
-	@sudo chmod 755 "$(WORDPRESS_DIR)" "$(DATABASE_DIR)"
-	# If DB perms act up later, try:
-	@sudo chown -R 999:999 "$(DATABASE_DIR)"
-
 up:
-	@$(DC) up -d
+	docker-compose -f $(DOCKER_COMPOSE) up -d
 
-down:
-	@$(DC) down
-
-restart:
-	@$(DC) restart
-
-build:
-	@$(DC) build --pull
-
-logs:
-	@$(DC) logs -f
-
-ps:
-	@$(DC) ps
+setup:
+	@sudo mkdir -p $(DATA_DIR) $(DATA_DATABASE) $(DATA_WEBSITE)
+	@sudo chmod 777 $(DATA_DIR) $(DATA_DATABASE) $(DATA_WEBSITE)
 
 clean:
-	@$(DC) down -v --rmi local --remove-orphans || true
+	docker-compose -f $(DOCKER_COMPOSE) down
 
 fclean: clean
-	@sudo rm -rf "$(WORDPRESS_DIR)" "$(DATABASE_DIR)"
+	@sudo rm -rf $(DATA_DATABASE) $(DATA_WEBSITE) $(DATA_DIR)
+	@docker rmi -f $$(docker images -q) || true
 
 re: fclean all
-
-.PHONY: all setup up down restart build logs ps clean fclean re
-
-
-
-
-
-#commentre: fclean all
