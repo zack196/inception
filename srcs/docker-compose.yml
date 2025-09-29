@@ -19,7 +19,7 @@ services:
       - ROOT_USER_PASSWORD=/run/secrets/root_user_password
       - MARIADB_PASSWORD=/run/secrets/db_password
       - MARIADB_ROOT_PASSWORD=/run/secrets/db_root_password
-    image: mariadb
+    image: mariadb:1.0
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin -h 127.0.0.1 -uroot -p\"$$(cat /run/secrets/db_root_password)\" ping --silent"]
       interval: 10s
@@ -54,7 +54,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 1m
-    image: wordpress
+    image: wordpress:1.0
 
   nginx:
     restart: always
@@ -70,7 +70,7 @@ services:
     depends_on:
       wordpress:
         condition: service_healthy
-    image: nginx
+    image: nginx:1.0
     
 
 volumes:

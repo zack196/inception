@@ -6,9 +6,6 @@ MARIADB_ROOT_PASSWORD=$(cat ${MARIADB_ROOT_PASSWORD})
 MARIADB_PASSWORD=$(cat ${MARIADB_PASSWORD})
 MARIADB_ROOT_USER_PASSWORD=$(cat ${ROOT_USER_PASSWORD})
 
-echo "MARIADB_ROOT_PASSWORD: $MARIADB_ROOT_PASSWORD"
-echo "MARIADB_ROOT_USER_PASSWORD: $MARIADB_ROOT_USER_PASSWORD"
-
 if [ ! -d /var/lib/mysql/mysql ]; then
     echo "Initialise database..."
     mariadb-install-db --basedir=/usr --user=mysql --datadir=/var/lib/mysql --skip-test-db
