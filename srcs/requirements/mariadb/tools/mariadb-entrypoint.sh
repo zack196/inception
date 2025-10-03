@@ -2,14 +2,12 @@
 
 set -e
 
-MARIADB_ROOT_PASSWORD=$(cat ${MARIADB_ROOT_PASSWORD})
-MARIADB_PASSWORD=$(cat ${MARIADB_PASSWORD})
-MARIADB_ROOT_USER_PASSWORD=$(cat ${ROOT_USER_PASSWORD})
+MARIADB_ROOT_PASSWORD="$(cat "$MARIADB_ROOT_PASSWORD")"
+MARIADB_PASSWORD="$(cat "$MARIADB_PASSWORD")"
 
 if [ ! -d /var/lib/mysql/mysql ]; then
     echo "Initialise database..."
     mariadb-install-db --basedir=/usr --user=mysql --datadir=/var/lib/mysql --skip-test-db
-    sleep(5)
     TMP=/tmp/.tmpfile
 
     echo "mysql commands..."
@@ -17,9 +15,7 @@ if [ ! -d /var/lib/mysql/mysql ]; then
     echo "FLUSH PRIVILEGES;" >> ${TMP}
 	echo "ALTER USER 'root'@'localhost' IDENTIFIED BY '${MARIADB_ROOT_PASSWORD}';" >> ${TMP}
 	echo "CREATE DATABASE ${WORDPRESS_DB_NAME};" >> ${TMP}
-    echo "CREATE USER '${WORDPRESS_DB_ROOT}'@'%' IDENTIFIED BY '${MARIADB_ROOT_USER_PASSWORD}';" >> ${TMP}
 	echo "CREATE USER '${WORDPRESS_DB_USER}'@'%' IDENTIFIED BY '${MARIADB_PASSWORD}';" >> ${TMP}
-	echo "GRANT ALL PRIVILEGES ON ${WORDPRESS_DB_NAME}.* TO '${WORDPRESS_DB_ROOT}'@'%' IDENTIFIED BY '${MARIADB_ROOT_USER_PASSWORD}';" >> ${TMP}
 	echo "GRANT ALL PRIVILEGES ON ${WORDPRESS_DB_NAME}.* TO '${WORDPRESS_DB_USER}'@'%' IDENTIFIED BY '${MARIADB_PASSWORD}';" >> ${TMP}
 	echo "FLUSH PRIVILEGES;" >> ${TMP}
 
@@ -30,4 +26,5 @@ if [ ! -d /var/lib/mysql/mysql ]; then
     echo "Database initialized successfully."
 
 fi
-exec mariadbd --user=mysql --datadir=/var/lib/mysql
+
+exec mariadbd --user=mysql --datadir=/var/lib/mysql 
