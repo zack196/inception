@@ -9,7 +9,7 @@ MARIADB_ROOT_USER_PASSWORD=$(cat ${ROOT_USER_PASSWORD})
 if [ ! -d /var/lib/mysql/mysql ]; then
     echo "Initialise database..."
     mariadb-install-db --basedir=/usr --user=mysql --datadir=/var/lib/mysql --skip-test-db
-
+    sleep(5)
     TMP=/tmp/.tmpfile
 
     echo "mysql commands..."

@@ -57,7 +57,7 @@ services:
     image: wordpress:1.0
 
   nginx:
-    restart: always
+    restart: always # change this
     build:
       context: ./requirements/nginx/
     container_name: nginx
@@ -100,3 +100,4 @@ secrets:
 
 networks:
   inception-network:
+    - inception
